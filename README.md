@@ -30,7 +30,7 @@
 Before you begin, ensure you have the following tools installed on your system:
 
 - [Git](https://git-scm.com/)
-- [Node.js](https://nodejs.org/en) (v18 or later)
+- [Node.js](https://nodejs.org/en) (v20 or later)
 - [pnpm](https://pnpm.io/)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for running the PostgreSQL database)
 
