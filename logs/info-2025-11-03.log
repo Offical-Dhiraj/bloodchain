@@ -1,0 +1,12 @@
+{
+  "timestamp": "2025-11-03T22:59:28.264Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-03T23:01:11.863Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
