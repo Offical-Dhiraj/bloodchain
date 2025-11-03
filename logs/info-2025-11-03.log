@@ -10,3 +10,9 @@
   "service": "Prisma",
   "message": "Database connected successfully"
 }
+{
+  "timestamp": "2025-11-03T23:03:27.849Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
