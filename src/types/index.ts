@@ -1,10 +1,4 @@
-export enum UserRole {
-    DONOR = 'DONOR',
-    RECIPIENT = 'RECIPIENT',
-    VERIFIER = 'VERIFIER',
-    AMBASSADOR = 'AMBASSADOR',
-    ADMIN = 'ADMIN',
-}
+import {UserRole} from "@/generated/prisma"
 
 export enum BloodType {
     A_POSITIVE = 'A_POSITIVE',
@@ -441,6 +435,7 @@ export class HemoBridgeError extends Error {
         this.name = 'HemoBridgeError'
     }
 }
+
 export class ValidationError extends HemoBridgeError {
     constructor(message: string) {
         super('VALIDATION_ERROR', 400, message)
