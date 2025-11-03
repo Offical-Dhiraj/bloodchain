@@ -191,7 +191,7 @@ export interface IVerification {
 // ============= BLOCKCHAIN TYPES =============
 
 export interface IDonationRecord {
-    recordId: number
+    recordId: string
     donor: string
     recipient: string
     bloodType: string
