@@ -1,0 +1,413 @@
+generator cleint {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  DONOR
+  RECIPIENT
+  VERIFIER // Community-based, decentralized
+  AMBASSADOR // Community leaders
+}
+
+enum BloodType {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED_PEER
+  VERIFIED_BLOCKCHAIN // Smart contract verified
+  REJECTED
+  FLAGGED_FRAUD
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?
+  name         String?
+  phone        String?
+  role         UserRole @default(DONOR)
+
+  // Decentralized Identity
+  did                 String? @unique // Decentralized Identifier
+  publicKey           String? @unique // For blockchain verification
+  privateKeyEncrypted String? // Encrypted private key (user-held)
+
+  // Blockchain
+  walletAddress        String? @unique
+  reputationNFTId      String? // Soulbound NFT token ID
+  totalReputationScore Int     @default(0)
+  blockedFromPlatform  Boolean @default(false)
+
+  // Verification
+  verificationStatus   VerificationStatus    @default(PENDING)
+  verificationAttempts VerificationAttempt[]
+
+  // Activity
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastActiveAt DateTime?
+
+  // Relations
+  donorProfile     DonorProfile?
+  recipientProfile RecipientProfile?
+  bloodRequests    BloodRequest[]
+  donations        Donation[]
+  verifications    Verification[]
+  blockedUsers     BlockedUser[]     @relation("blocker")
+  blockedByUsers   BlockedUser[]     @relation("blocked")
+  reviews          Review[]
+  RequestMatch     RequestMatch[]
+
+  @@index([walletAddress])
+  @@index([did])
+  @@map("users")
+}
+
+model DonorProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bloodType BloodType
+  rhFactor  String
+
+  // Autonomous matching
+  isAvailable      Boolean   @default(true)
+  lastDonationDate DateTime?
+  nextEligibleDate DateTime?
+
+  // AI Reputation (Decentralized)
+  aiReputationScore        Float @default(0.5)
+  totalSuccessfulDonations Int   @default(0)
+  totalFailedMatches       Int   @default(0)
+  avgResponseTime          Int? // seconds
+
+  // Blockchain Rewards
+  nftBadgesIssued    String[] // Array of NFT token IDs
+  totalRewardsEarned Float    @default(0)
+  rewardNFTsMinted   Int      @default(0)
+
+  // Verifications
+  biometricVerified     Boolean   @default(false)
+  biometricHash         String? // Hash of face embedding
+  lastBiometricVerified DateTime?
+  fraudRiskScore        Float     @default(0)
+
+  createdAt DateTime       @default(now())
+  donations Donation[]
+  matches   RequestMatch[]
+
+  @@map("donor_profiles")
+}
+
+model RecipientProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  medicalHistory      String? // Encrypted
+  emergencyContacts   String? // Encrypted
+  preferredDonorTypes String[] // Blood types preferred
+
+  createdAt     DateTime       @default(now())
+  bloodRequests BloodRequest[]
+
+  @@map("recipient_profiles")
+}
+
+model BloodRequest {
+  id          String @id @default(cuid())
+  recipientId String
+  recipient   User   @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  bloodType    BloodType
+  rhFactor     String
+  unitsNeeded  Int
+  urgencyLevel String // LOW, MEDIUM, HIGH, CRITICAL, EMERGENCY
+
+  // P2P Location (Anonymous for privacy)
+  latitude  Float?
+  longitude Float?
+  radius    Int    @default(50) // km
+
+  // Autonomous Verification
+  medicalProofIPFSHash  String? // Medical document on IPFS
+  verificationStatus    VerificationStatus @default(PENDING)
+  verifiedByPeers       String[] // Array of verifier user IDs
+  requiredVerifications Int                @default(3) // Automatic multi-sig
+
+  // Blockchain
+  smartContractAddress String? // Deployed on blockchain
+  transactionHash      String?
+  isOnChain            Boolean @default(false)
+
+  status              String   @default("OPEN") // OPEN, MATCHED, FULFILLED, EXPIRED
+  expiresAt           DateTime
+  autoMatchingEnabled Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  matches            RequestMatch[]
+  donations          Donation[]
+  verifications      Verification[]
+  RecipientProfile   RecipientProfile? @relation(fields: [recipientProfileId], references: [id])
+  recipientProfileId String?
+
+  @@index([urgencyLevel])
+  @@index([status])
+  @@map("blood_requests")
+}
+
+model RequestMatch {
+  id        String       @id @default(cuid())
+  requestId String
+  request   BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  donorId String
+  donor   User   @relation(fields: [donorId], references: [id], onDelete: Cascade)
+
+  // AI Matching Scores
+  compatibilityScore Float @default(0)
+  distanceScore      Float @default(0)
+  reputationScore    Float @default(0)
+  urgencyScore       Float @default(0)
+  overallAIScore     Float @default(0)
+
+  // Blockchain Smart Contract
+  escrowContractAddress String?
+  escrowAmount          Float? // In tokens
+
+  status        String    @default("PENDING") // PENDING, ACCEPTED, REJECTED, COMPLETED, EXPIRED
+  automatchedAt DateTime? // When AI matched them
+  respondedAt   DateTime?
+  expiresAt     DateTime
+
+  createdAt DateTime @default(now())
+
+  donations      Donation[]
+  reviews        Review[]
+  DonorProfile   DonorProfile? @relation(fields: [donorProfileId], references: [id])
+  donorProfileId String?
+
+  @@unique([requestId, donorId])
+  @@index([status])
+  @@map("request_matches")
+}
+
+model Donation {
+  id      String       @id @default(cuid())
+  matchId String
+  match   RequestMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  donorId String
+  donor   User   @relation(fields: [donorId], references: [id], onDelete: Cascade)
+
+  requestId String
+  request   BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  bloodType      BloodType
+  rhFactor       String
+  unitsCollected Int
+
+  // Blockchain Verification
+  transactionHash    String? @unique
+  smartContractHash  String?
+  blockchainVerified Boolean @default(false)
+
+  // Status
+  status              String  @default("PENDING") // PENDING, IN_TRANSIT, COLLECTED, TRANSFERRED, COMPLETED, FAILED
+  completionProofIPFS String? // IPFS hash of completion proof
+
+  // Autonomous Rewards
+  rewardTokensIssued Float   @default(0)
+  nftMinted          Boolean @default(false)
+  nftTokenId         String? // NFT Token ID on blockchain
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  reviews        Review[]
+  DonorProfile   DonorProfile? @relation(fields: [donorProfileId], references: [id])
+  donorProfileId String?
+
+  @@index([status])
+  @@index([transactionHash])
+  @@map("donations")
+}
+
+model VerificationAttempt {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  verificationType String // BIOMETRIC, DOCUMENT, PROOF_OF_DONATION
+  status           VerificationStatus
+
+  // Biometric Data (Encrypted)
+  facialEmbeddingHash String? // Hash, not actual embedding
+  livenessScore       Float?
+  spoofDetectionScore Float?
+
+  // Fraud Detection
+  fraudRiskScore Float    @default(0)
+  fraudFlags     String[] // Array of fraud indicators
+
+  // Blockchain Attestation
+  attestationHash     String? // Hash stored on blockchain
+  attestedByVerifiers String[] // Array of verifier DIDs
+
+  trustScore Float
+  riskLevel  String // LOW, MEDIUM, HIGH, CRITICAL
+
+  createdAt DateTime @default(now())
+
+  @@map("verification_attempts")
+}
+
+model Verification {
+  id               String @id @default(cuid())
+  verificationType String // BIOMETRIC, DOCUMENT, PEER_REVIEW
+
+  requestId String?
+  request   BloodRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+
+  verifierId String // Decentralized verifier
+  verifier   User   @relation(fields: [verifierId], references: [id], onDelete: Cascade)
+
+  // Multi-signature blockchain
+  blockchainSignature String?
+  merkleProof         String?
+
+  status     VerificationStatus
+  confidence Float              @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@map("verifications")
+}
+
+model BlockedUser {
+  id        String @id @default(cuid())
+  blockerId String
+  blocker   User   @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+
+  blockedId String
+  blocked   User   @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@map("blocked_users")
+}
+
+model Review {
+  id String @id @default(cuid())
+
+  fromUserId String
+  fromUser   User   @relation(fields: [fromUserId], references: [id], onDelete: Cascade)
+
+  matchId String
+  match   RequestMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  donationId String?
+  donation   Donation? @relation(fields: [donationId], references: [id], onDelete: SetNull)
+
+  rating  Int // 1-5 stars
+  comment String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([fromUserId, matchId])
+  @@map("reviews")
+}
+
+model SmartContractEvent {
+  id        String @id @default(cuid())
+  eventName String
+
+  transactionHash String @unique
+  blockNumber     Int
+  contractAddress String
+
+  eventData String // JSON stringified event data
+
+  createdAt DateTime @default(now())
+
+  @@map("smart_contract_events")
+}
+
+model AIMatchingLog {
+  id        String @id @default(cuid())
+  requestId String
+
+  matchCount    Int
+  topMatchScore Float
+  avgMatchScore Float
+
+  executedAt DateTime @default(now())
+
+  @@map("ai_matching_logs")
+}
+
+model FraudAlert {
+  id     String @id @default(cuid())
+  userId String
+
+  alertType   String // SUSPICIOUS_PATTERN, DUPLICATE_ACCOUNT, IMPOSSIBLE_TRAVEL, etc
+  severity    String // LOW, MEDIUM, HIGH, CRITICAL
+  description String
+
+  fraudScore         Float
+  blockchainAttested Boolean @default(false)
+
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@map("fraud_alerts")
+}
+
+model DecentralizedVerifierPool {
+  id             String @id @default(cuid())
+  verifierUserId String @unique
+
+  // Qualification Score (ML-based)
+  qualificationScore      Float @default(0)
+  successfulVerifications Int   @default(0)
+  disputedVerifications   Int   @default(0)
+
+  // Blockchain Credentials
+  verifierCredential   String? // NFT credential token ID
+  smartContractAddress String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@map("decentralized_verifier_pool")
+}
