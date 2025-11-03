@@ -1,18 +1,17 @@
-// lib/services/blood-request.service.ts
-
-import { prisma } from '@/lib/prisma'
-import { Logger } from '@/lib/utils/logger'
-import { GeoUtil, ICoordinates } from '@/lib/utils/distance'
+import {prisma} from '@/lib/prisma'
+import {Logger} from '@/lib/utils/logger'
+import {GeoUtil, ICoordinates} from '@/lib/utils/distance'
 import {
+    HemoBridgeError,
     IBloodRequest,
     IBloodRequestCreateDto,
-    BloodType,
     UrgencyLevel,
     ValidationError,
     VerificationStatus,
-    HemoBridgeError,
 } from '@/types'
-import { Validator } from '@/lib/utils/validators'
+import {Validator} from '@/lib/utils/validators'
+import {$Enums, RequestMatch} from '@/generated/prisma'
+import BloodType = $Enums.BloodType; // Import Prisma type
 
 /**
  * BLOOD REQUEST SERVICE
@@ -30,14 +29,14 @@ export class BloodRequestService {
         data: IBloodRequestCreateDto
     ): Promise<IBloodRequest> {
         try {
-            this.logger.info('Creating blood request', { userId, bloodType: data.bloodType })
+            this.logger.info('Creating blood request', {userId, bloodType: data.bloodType})
 
             // Validate input
             const validated = Validator.validateBloodRequest(data)
 
             // Check user is recipient
             const user = await prisma.user.findUnique({
-                where: { id: userId },
+                where: {id: userId},
             })
 
             if (!user) {
@@ -63,7 +62,7 @@ export class BloodRequestService {
                 },
             })
 
-            this.logger.info('Blood request created', { requestId: bloodRequest.id })
+            this.logger.info('Blood request created', {requestId: bloodRequest.id})
             return bloodRequest as IBloodRequest
         } catch (error) {
             this.logger.error('Failed to create blood request', error as Error)
@@ -80,7 +79,7 @@ export class BloodRequestService {
     ): Promise<any[]> {
         try {
             const request = await prisma.bloodRequest.findUnique({
-                where: { id: requestId },
+                where: {id: requestId},
             })
 
             if (!request) {
@@ -99,6 +98,10 @@ export class BloodRequestService {
             // Get bounding box for database query
             const bbox = GeoUtil.getBoundingBox(center, request.radius)
 
+            // NOTE: This function's distance filtering is incomplete as donors
+            // do not have location data in your schema.
+            // The AI service's location caching is the correct approach.
+
             // Find compatible donors
             const donors = await prisma.donorProfile.findMany({
                 where: {
@@ -107,6 +110,7 @@ export class BloodRequestService {
                     user: {
                         blockedFromPlatform: false,
                     },
+                    // TODO: Add location query here using `bbox` if donors have lat/lon
                 },
                 include: {
                     user: true,
@@ -119,8 +123,10 @@ export class BloodRequestService {
                 .filter((donor) => {
                     if (!donor.user) return false
 
+                    // TODO: This is placeholder logic. Donor location needs
+                    // to be fetched from a live cache (like the AI service has).
                     const donorCoords: ICoordinates = {
-                        latitude: 0, // Would be from user location data
+                        latitude: 0,
                         longitude: 0,
                     }
 
@@ -141,6 +147,65 @@ export class BloodRequestService {
     }
 
     /**
+     * Confirms a donation match when a donor accepts.
+     * Updates the match and the request status in a transaction.
+     */
+    async confirmDonationMatch(
+        matchId: string,
+        donorUserId: string
+    ): Promise<RequestMatch & { request: IBloodRequest }> {
+        this.logger.info('Confirming donation match', {matchId, donorUserId});
+
+        const updatedMatch = await prisma.$transaction(async (tx) => {
+            // 1. Find the match and verify the donor
+            const match = await tx.requestMatch.findUnique({
+                where: {id: matchId},
+            });
+
+            if (!match) {
+                throw new ValidationError('Match not found');
+            }
+            if (match.donorId !== donorUserId) {
+                throw new HemoBridgeError("Unauthorized",401,'You are not the donor for this match');
+            }
+            if (match.status !== 'PENDING') {
+                throw new ValidationError('This match has already been actioned');
+            }
+
+            // 2. Update the match status
+            const confirmedMatch = await tx.requestMatch.update({
+                where: {id: matchId},
+                data: {
+                    status: 'ACCEPTED',
+                    respondedAt: new Date(),
+                },
+                include: {
+                    // Include the request, which has the recipientId
+                    // This is needed by the socket server
+                    request: true,
+                },
+            });
+
+            // 3. Update the blood request status to 'MATCHED'
+            await tx.bloodRequest.update({
+                where: {id: match.requestId},
+                data: {status: 'MATCHED'},
+            });
+
+            return confirmedMatch;
+        });
+
+        this.logger.info('Match confirmed and request status updated', {
+            matchId: updatedMatch.id,
+            requestId: updatedMatch.requestId,
+        });
+
+        // The socket server needs this full object to notify the recipient
+        return updatedMatch as RequestMatch & { request: IBloodRequest };
+    }
+
+
+    /**
      * Update request status
      */
     async updateRequestStatus(
@@ -149,8 +214,8 @@ export class BloodRequestService {
     ): Promise<IBloodRequest> {
         try {
             const request = await prisma.bloodRequest.update({
-                where: { id: requestId },
-                data: { status },
+                where: {id: requestId},
+                data: {status},
             })
 
             this.logger.info('Blood request status updated', {
@@ -171,7 +236,7 @@ export class BloodRequestService {
     async getRequest(requestId: string): Promise<IBloodRequest | null> {
         try {
             const request = await prisma.bloodRequest.findUnique({
-                where: { id: requestId },
+                where: {id: requestId},
                 include: {
                     matches: true,
                     recipient: true,
@@ -193,9 +258,9 @@ export class BloodRequestService {
             const requests = await prisma.bloodRequest.findMany({
                 where: {
                     status: 'OPEN',
-                    expiresAt: { gt: new Date() },
+                    expiresAt: {gt: new Date()},
                 },
-                orderBy: { urgencyLevel: 'desc' },
+                orderBy: {urgencyLevel: 'desc'},
                 take: limit,
             })
 

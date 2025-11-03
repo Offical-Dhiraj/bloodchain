@@ -1,14 +1,7 @@
-// lib/services/ai.service.ts
-
 import * as tf from '@tensorflow/tfjs'
-import { prisma } from '@/lib/prisma'
-import { Logger } from '@/lib/utils/logger'
-import {
-    IAIFeatureVector,
-    IAIMatchingScore,
-    IBloodRequest,
-    IDonorProfile,
-} from '@/types'
+import {prisma} from '@/lib/prisma'
+import {Logger} from '@/lib/utils/logger'
+import {IAIFeatureVector, IAIMatchingScore, IBloodRequest, IDonorProfile,} from '@/types'
 
 /**
  * AI MATCHING SERVICE
@@ -18,11 +11,16 @@ import {
 export class AIService {
     private logger: Logger = new Logger('AIService')
     private model: tf.LayersModel | null = null
+    // ---
+    // **NEW:** A cache to store live donor locations
+    // ---
+    private donorLocations: Map<string, { lat: number, lon: number }> = new Map();
 
     /**
      * Initialize AI model
      */
     async initializeModel(): Promise<void> {
+        // ... (existing initializeModel logic)
         try {
             if (this.model) return
 
@@ -48,22 +46,23 @@ export class AIService {
      * Build neural network model
      */
     private buildModel(): tf.LayersModel {
+        // ... (existing buildModel logic)
         const model = tf.sequential({
             layers: [
                 tf.layers.dense({
                     inputShape: [10],
                     units: 64,
                     activation: 'relu',
-                    kernelRegularizer: tf.regularizers.l2({ l2: 0.001 }),
+                    kernelRegularizer: tf.regularizers.l2({l2: 0.001}),
                 }),
                 tf.layers.batchNormalization(),
-                tf.layers.dropout({ rate: 0.3 }),
+                tf.layers.dropout({rate: 0.3}),
                 tf.layers.dense({
                     units: 32,
                     activation: 'relu',
-                    kernelRegularizer: tf.regularizers.l2({ l2: 0.001 }),
+                    kernelRegularizer: tf.regularizers.l2({l2: 0.001}),
                 }),
-                tf.layers.dropout({ rate: 0.2 }),
+                tf.layers.dropout({rate: 0.2}),
                 tf.layers.dense({
                     units: 16,
                     activation: 'relu',
@@ -85,6 +84,33 @@ export class AIService {
         return model
     }
 
+    // ---
+    // **FIX 1:** The missing method is now added.
+    // ---
+    /**
+     * Update a donor's live location in the cache.
+     * This is called by the socket server.
+     */
+    async updateDonorLocation(userId: string, lat: number, lon: number): Promise<void> {
+        this.donorLocations.set(userId, {lat, lon});
+        this.logger.debug('Updated donor location cache', {userId});
+    }
+
+    /**
+     * Calculates distance between two lat/lon points in km (Haversine formula)
+     */
+    private getDistanceInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+        const R = 6371; // Radius of the Earth in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distance in km
+    }
+
     /**
      * Extract features from donor and request
      */
@@ -92,6 +118,7 @@ export class AIService {
         request: IBloodRequest,
         donor: IDonorProfile
     ): Promise<IAIFeatureVector> {
+        // ... (existing extractFeatures logic)
         return {
             bloodTypeCompatibility: 1.0,
             rhFactorCompatibility: 1.0,
@@ -122,6 +149,7 @@ export class AIService {
      * Convert urgency level to number
      */
     private urgencyToNumber(urgency: string): number {
+        // ... (existing urgencyToNumber logic)
         const urgencyMap: Record<string, number> = {
             LOW: 1,
             MEDIUM: 2,
@@ -136,6 +164,7 @@ export class AIService {
      * Convert features to tensor array
      */
     private featuresToArray(features: IAIFeatureVector): number[] {
+        // ... (existing featuresToArray logic)
         return [
             features.bloodTypeCompatibility,
             features.rhFactorCompatibility,
@@ -157,6 +186,7 @@ export class AIService {
         request: IBloodRequest,
         donor: IDonorProfile
     ): Promise<number> {
+        // ... (existing predictMatchingScore logic)
         try {
             if (!this.model) {
                 await this.initializeModel()
@@ -181,17 +211,20 @@ export class AIService {
 
     /**
      * Autonomous matching for blood request
+     * ---
+     * **UPGRADED:** Now uses live location data for real distance calculation.
+     * ---
      */
     async autonomousMatching(requestId: string): Promise<IAIMatchingScore[]> {
         try {
-            this.logger.info('Running autonomous matching', { requestId })
+            this.logger.info('Running autonomous matching', {requestId})
 
             const request = await prisma.bloodRequest.findUnique({
-                where: { id: requestId },
+                where: {id: requestId},
             })
 
-            if (!request) {
-                throw new Error('Request not found')
+            if (!request || !request.latitude || !request.longitude) {
+                throw new Error('Request not found or has no location')
             }
 
             // Find compatible donors
@@ -199,31 +232,55 @@ export class AIService {
                 where: {
                     bloodType: request.bloodType,
                     isAvailable: true,
-                    user: { blockedFromPlatform: false },
+                    user: {blockedFromPlatform: false},
                 },
-                include: { user: true },
-                take: 50,
+                include: {user: true},
+                take: 100, // Get a larger pool to filter by location
             })
 
             // Score each donor
             const scores: IAIMatchingScore[] = []
 
             for (const donor of donors) {
-                const aiScore = await this.predictMatchingScore(request as IBloodRequest, donor as IDonorProfile)
+                // Get donor's live location from cache
+                const donorLocation = this.donorLocations.get(donor.userId);
 
+                // Skip donor if they have no live location
+                if (!donorLocation) {
+                    continue;
+                }
+
+                // Calculate real distance
+                const distance = this.getDistanceInKm(
+                    request.latitude,
+                    request.longitude,
+                    donorLocation.lat,
+                    donorLocation.lon
+                );
+
+                // Skip donor if they are outside the request radius
+                if (distance > request.radius) {
+                    continue;
+                }
+
+                const aiScore = await this.predictMatchingScore(request as IBloodRequest, donor as IDonorProfile)
+                const distanceScore = Math.max(0, 1 - (distance / request.radius));
+
+                // Only consider high-potential matches
                 if (aiScore > 0.7) {
                     scores.push({
                         donorId: donor.user?.id || '',
                         userId: donor.userId,
-                        distance: Math.random() * request.radius,
+                        distance: distance, // Real distance
                         aiScore,
                         reputation: donor.aiReputationScore,
                         compatibilityScore: 1.0,
-                        distanceScore: Math.max(0, 1 - (Math.random() * request.radius) / request.radius),
+                        distanceScore: distanceScore, // Real score
                         reputationScore: donor.aiReputationScore,
                         availabilityScore: 0.9,
                         responseScore: Math.max(0, 1.0 - (donor.avgResponseTime || 0) / 3600),
-                        overallScore: aiScore,
+                        // Overall score now weights distance
+                        overallScore: aiScore * 0.6 + distanceScore * 0.4,
                     })
                 }
             }
