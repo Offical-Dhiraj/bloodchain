@@ -10,7 +10,7 @@ import type { NextRequest } from 'next/server'
  */
 
 export default withAuth(
-    function middleware(request: NextRequest) {
+    function proxy(request: NextRequest) {
         // Additional middleware logic
         return NextResponse.next()
     },
