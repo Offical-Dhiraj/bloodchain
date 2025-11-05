@@ -2,12 +2,11 @@
 
 'use client'
 
-import { useSession } from 'next-auth/react'
+import {useSession} from 'next-auth/react'
 import {JSX, useEffect, useState} from 'react'
-import { useRouter } from 'next/navigation'
-import { Logger } from '@/lib/utils/logger'
-
-const logger = new Logger('Dashboard')
+import {useRouter} from 'next/navigation'
+import {logToServer} from "@/lib/actions/log.action";
+import {LogLevel} from "@/types/logger";
 
 interface DashboardStats {
     activeRequests: number
@@ -17,7 +16,7 @@ interface DashboardStats {
 }
 
 export default function DashboardPage(): JSX.Element {
-    const { data: session, status } = useSession()
+    const {data: session, status} = useSession()
     const router = useRouter()
     const [stats, setStats] = useState<DashboardStats>({
         activeRequests: 0,
@@ -50,9 +49,9 @@ export default function DashboardPage(): JSX.Element {
                 setStats(data.data)
             }
 
-            logger.info('Dashboard data fetched')
+            await logToServer(LogLevel.INFO, "Dashboard data fetched")
         } catch (error) {
-            logger.error('Failed to fetch dashboard data', error as Error)
+            await logToServer(LogLevel.ERROR, "Failed to fetch dashboard data",{error})
         } finally {
             setLoading(false)
         }
@@ -86,10 +85,10 @@ export default function DashboardPage(): JSX.Element {
                 {/* Stats Grid */}
                 <div className="grid md:grid-cols-4 gap-6 mb-8">
                     {[
-                        { label: 'Active Requests', value: stats.activeRequests, icon: '📋' },
-                        { label: 'Matched Donors', value: stats.matchedDonors, icon: '💉' },
-                        { label: 'Completed', value: stats.completedDonations, icon: '✅' },
-                        { label: 'Rewards Earned', value: stats.totalRewards, icon: '🎁' },
+                        {label: 'Active Requests', value: stats.activeRequests, icon: '📋'},
+                        {label: 'Matched Donors', value: stats.matchedDonors, icon: '💉'},
+                        {label: 'Completed', value: stats.completedDonations, icon: '✅'},
+                        {label: 'Rewards Earned', value: stats.totalRewards, icon: '🎁'},
                     ].map((stat) => (
                         <div
                             key={stat.label}
@@ -107,7 +106,8 @@ export default function DashboardPage(): JSX.Element {
                     {session?.user?.role === 'RECIPIENT' && (
                         <div className="bg-white p-6 rounded-lg shadow-md">
                             <h2 className="text-2xl font-bold mb-4">📝 Create Request</h2>
-                            <button className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-semibold transition">
+                            <button
+                                className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-semibold transition">
                                 New Blood Request
                             </button>
                         </div>
@@ -116,7 +116,8 @@ export default function DashboardPage(): JSX.Element {
                     {session?.user?.role === 'DONOR' && (
                         <div className="bg-white p-6 rounded-lg shadow-md">
                             <h2 className="text-2xl font-bold mb-4">🩸 Donate Blood</h2>
-                            <button className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-semibold transition">
+                            <button
+                                className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-semibold transition">
                                 View Matching Requests
                             </button>
                         </div>
@@ -124,7 +125,8 @@ export default function DashboardPage(): JSX.Element {
 
                     <div className="bg-white p-6 rounded-lg shadow-md">
                         <h2 className="text-2xl font-bold mb-4">⚙️ Settings</h2>
-                        <button className="w-full bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-semibold transition">
+                        <button
+                            className="w-full bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-semibold transition">
                             Profile Settings
                         </button>
                     </div>

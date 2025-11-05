@@ -1,0 +1,118 @@
+{
+  "timestamp": "2025-11-05T19:35:20.894Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:36:00.278Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:42:27.986Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:42:36.238Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:45:06.882Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:46:08.212Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:46:10.381Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:46:23.983Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:47:48.960Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:48:00.020Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:48:08.226Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:48:14.331Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:55:54.445Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T19:59:57.784Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T20:00:34.264Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T20:00:40.137Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T20:00:43.641Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
+{
+  "timestamp": "2025-11-05T20:00:48.900Z",
+  "level": "INFO",
+  "service": "NextAuth",
+  "message": "User sign in",
+  "data": {
+    "userId": "112029465074347928895",
+    "provider": "google"
+  }
+}
+{
+  "timestamp": "2025-11-05T20:00:51.813Z",
+  "level": "INFO",
+  "service": "Prisma",
+  "message": "Database connected successfully"
+}
