@@ -1,7 +1,7 @@
 // src/lib/db-seed.ts
 
-import { prisma } from '@/lib/prisma'
-import { Logger } from '@/lib/utils/logger'
+import {prisma} from '@/lib/prisma'
+import {Logger} from '@/lib/utils/logger'
 
 const logger = new Logger('DatabaseSeed')
 
@@ -30,7 +30,7 @@ export async function seedDatabase() {
                 isAvailable: true,
                 aiReputationScore: 0.85,
                 totalSuccessfulDonations: 10,
-                ReputationScore: 850,
+                reputationScore: 850,
             },
         })
 

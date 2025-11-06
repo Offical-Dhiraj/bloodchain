@@ -14,7 +14,7 @@ const logger = new Logger('AutomatedMatchingAPI')
  * POST /api/blood-requests/automated-matching
  * Triggers autonomous AI matching for a blood request
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
         const session = await getServerSession(authOptions)
 
@@ -25,7 +25,15 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const {requestId} = await request.json()
+        const body = await request.json()
+        const {requestId} = body
+
+        if (!requestId || typeof requestId !== 'string') {
+            return NextResponse.json(
+                {error: 'Invalid requestId'},
+                {status: 400}
+            )
+        }
 
         // Get blood request
         const bloodRequest = await prisma.bloodRequest.findUnique({
@@ -51,7 +59,11 @@ export async function POST(request: NextRequest) {
         if (matches.length === 0) {
             logger.warn('⚠️ No matches found', {requestId})
             return NextResponse.json(
-                {success: true, matchCount: 0, message: 'No suitable matches found'},
+                {
+                    success: true,
+                    matchCount: 0,
+                    message: 'No suitable matches found',
+                },
                 {status: 200}
             )
         }
@@ -59,22 +71,29 @@ export async function POST(request: NextRequest) {
         // Create match records
         const createdMatches = await matchingService.createMatches(matches)
 
-        // Notify top donor
-        if (createdMatches.length > 0) {
-            const topMatch = createdMatches[0]
+        // Notify top donors
+        for (let i = 0; i < Math.min(createdMatches.length, 3); i++) {
+            const match = createdMatches[i]
             const donor = await prisma.donorProfile.findUnique({
-                where: {id: topMatch.donorId},
+                where: {id: match.donorId},
                 include: {user: true},
             })
 
             if (donor?.user?.email) {
-                await notificationService.sendEmailNotification(donor.user.email, {
-                    userId: donor.userId,
-                    type: 'MATCH_FOUND',
-                    title: '🎉 You Have a New Match!',
-                    message: `Your profile matches a blood request. Score: ${(topMatch.overallScore * 100).toFixed(0)}%`,
-                    data: {matchId: topMatch.id, requestId},
-                })
+                try {
+                    await notificationService.sendEmailNotification(donor.user.email, {
+                        userId: donor.userId,
+                        type: 'MATCH_FOUND',
+                        title: '🎉 You Have a New Match!',
+                        message: `Your profile matches a blood request. Score: ${(match.overallScore * 100).toFixed(0)}%`,
+                        data: {matchId: match.id, requestId},
+                    })
+                } catch (error) {
+                    logger.warn(
+                        `Failed to send email to donor ${donor.userId}: ` +
+                        (error as Error).message
+                    )
+                }
             }
         }
 
@@ -90,12 +109,16 @@ export async function POST(request: NextRequest) {
                 matches: createdMatches.map((m) => ({
                     id: m.id,
                     score: m.overallScore,
+                    donorId: m.donorId,
                 })),
             },
             {status: 200}
         )
     } catch (error) {
-        logger.error('Automated matching error: ' + (error as Error).message)
+        logger.error(
+            'Automated matching error:',
+            error instanceof Error ? error.message : String(error)
+        )
         return NextResponse.json(
             {error: 'Failed to process matching'},
             {status: 500}
