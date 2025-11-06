@@ -1,7 +1,7 @@
 // src/services/matching.service.ts
 
 import { prisma } from '@/lib/prisma'
-import { Logger } from '@/lib/logger'
+import { Logger } from '@/lib/utils/logger'
 import { GeoUtil } from '@/lib/geo-util'
 import * as tf from '@tensorflow/tfjs'
 import { BloodRequest, DonorProfile, RequestMatch } from '@/generated/prisma'
