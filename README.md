@@ -115,7 +115,7 @@ Your Bloodchain instance is now live and fully operational.
 
 ## 📚 Documentation
 
-* **Software Requirements (SRS):** `BLOODCHAIN_SRS.pdf`
-* **API Code Reference:** `BLOODCHAIN_API_CODE.md`
-* **Setup Guide:** `BLOODCHAIN_SETUP_GUIDE.md`
-* **Contributing:** `docs/CONTRIBUTING.md`
+* **Software Requirements (SRS):** [`BLOODCHAIN_SRS.pdf`](/docs/BLOODCHAIN_SRS.pdf)
+* **API Code Reference:** [`BLOODCHAIN_API_CODE.md`](/docs/BLOODCHAIN_API_CODE.md)
+* **Setup Guide:** [`BLOODCHAIN_SETUP_GUIDE.md`](docs/BLOODCHAIN_SETUP_GUIDE.md)
+* **Contributing:** [`CONTRIBUTING.md`](docs/CONTRIBUTING.md)
