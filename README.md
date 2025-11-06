@@ -10,17 +10,17 @@ tokens and NFT credentials.
 
 ## ✨ Key Features
 
-* [cite_start]**AI-Powered Matching:** A 10-feature TensorFlow.js model analyzes compatibility,
-  distance [cite: 157][cite_start], reputation [cite: 158][cite_start], and fraud risk [cite: 163] to find the best
+* **AI-Powered Matching:** A 10-feature TensorFlow.js model analyzes compatibility,
+  distance , reputation , and fraud risk  to find the best
   donors instantly.
-* [cite_start]**Decentralized Verification:** A peer-to-peer network of verifiers can attest to donations, which are
+* **Decentralized Verification:** A peer-to-peer network of verifiers can attest to donations, which are
   then recorded immutably on the blockchain.
-* [cite_start]**Biometric Identity:** AI-powered facial recognition and liveness detection prevent fraud and ensure user
-  identity[cite: 183].
-* [cite_start]**Real-time Geolocation:** Donors and recipients can connect in real-time, with donors' live locations
-  used for precise, privacy-preserving matching within a specified radius[cite: 19].
-* [cite_start]**Tokenized Rewards:** Donors earn ERC-20 tokens for successful donations [cite: 311] [cite_start]and are
-  awarded soulbound NFT badges (ERC-721) for achievements[cite: 320].
+* **Biometric Identity:** AI-powered facial recognition and liveness detection prevent fraud and ensure user
+  identity.
+* **Real-time Geolocation:** Donors and recipients can connect in real-time, with donors' live locations
+  used for precise, privacy-preserving matching within a specified radius.
+* **Tokenized Rewards:** Donors earn ERC-20 tokens for successful donations  and are
+  awarded soulbound NFT badges (ERC-721) for achievements.
 
 ---
 
