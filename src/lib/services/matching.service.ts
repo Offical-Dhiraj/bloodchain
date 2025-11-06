@@ -1,10 +1,10 @@
 // src/services/matching.service.ts
 
-import { prisma } from '@/lib/prisma'
-import { Logger } from '@/lib/utils/logger'
-import { GeoUtil } from '@/lib/geo-util'
+import {prisma} from '@/lib/prisma'
+import {Logger} from '@/lib/utils/logger'
+import {GeoUtil} from '@/lib/utils/geo-util'
 import * as tf from '@tensorflow/tfjs'
-import { BloodRequest, DonorProfile, RequestMatch } from '@/generated/prisma'
+import {BloodRequest, DonorProfile, RequestMatch} from '@/generated/prisma'
 
 interface MatchingFeatures {
     bloodTypeScore: number
@@ -49,14 +49,14 @@ export class MatchingService {
                     inputShape: [8],
                     units: 64,
                     activation: 'relu',
-                    kernelRegularizer: tf.regularizers.l2({ l2: 0.001 }),
+                    kernelRegularizer: tf.regularizers.l2({l2: 0.001}),
                 }),
                 tf.layers.batchNormalization(),
-                tf.layers.dropout({ rate: 0.3 }),
-                tf.layers.dense({ units: 32, activation: 'relu' }),
-                tf.layers.dropout({ rate: 0.2 }),
-                tf.layers.dense({ units: 16, activation: 'relu' }),
-                tf.layers.dense({ units: 1, activation: 'sigmoid' }),
+                tf.layers.dropout({rate: 0.3}),
+                tf.layers.dense({units: 32, activation: 'relu'}),
+                tf.layers.dropout({rate: 0.2}),
+                tf.layers.dense({units: 16, activation: 'relu'}),
+                tf.layers.dense({units: 1, activation: 'sigmoid'}),
             ],
         })
 
@@ -79,8 +79,8 @@ export class MatchingService {
             }
 
             const request = await prisma.bloodRequest.findUnique({
-                where: { id: requestId },
-                include: { recipient: true },
+                where: {id: requestId},
+                include: {recipient: true},
             })
 
             if (!request) {
@@ -92,12 +92,12 @@ export class MatchingService {
                 where: {
                     bloodType: request.bloodType,
                     isAvailable: true,
-                    user: { blockedFromPlatform: false },
+                    user: {blockedFromPlatform: false},
                 },
                 include: {
                     user: true,
                     donations: {
-                        where: { status: 'COMPLETED' },
+                        where: {status: 'COMPLETED'},
                         take: 10,
                     },
                 },
@@ -126,7 +126,7 @@ export class MatchingService {
                 .sort((a, b) => b.score - a.score)
                 .slice(0, maxResults)
         } catch (error) {
-            logger.error('Matching error:', error)
+            logger.error('Matching error: ' + (error as Error).message)
             return []
         }
     }
@@ -143,8 +143,8 @@ export class MatchingService {
 
         const distance = request.latitude && request.longitude && donor.latitude && donor.longitude
             ? GeoUtil.calculateDistance(
-                { latitude: request.latitude, longitude: request.longitude },
-                { latitude: donor.latitude, longitude: donor.longitude }
+                {latitude: request.latitude, longitude: request.longitude},
+                {latitude: donor.latitude, longitude: donor.longitude}
             )
             : 0
 
@@ -210,7 +210,7 @@ export class MatchingService {
             logger.info(`✅ Created ${matches.length} matches`)
             return matches
         } catch (error) {
-            logger.error('Failed to create matches:', error)
+            logger.error('Failed to create matches: ' + (error as Error).message)
             throw error
         }
     }
