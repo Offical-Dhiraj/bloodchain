@@ -10,8 +10,9 @@ import {
     VerificationStatus,
 } from '@/types'
 import {Validator} from '@/lib/utils/validators'
-import {$Enums, RequestMatch} from '@/generated/prisma'
+import {$Enums, BloodRequest as PrismaBloodRequest, RequestMatch} from '@/generated/prisma'
 import BloodType = $Enums.BloodType; // Import Prisma type
+import RequestStatus = $Enums.RequestStatus;
 
 /**
  * BLOOD REQUEST SERVICE
@@ -153,20 +154,21 @@ export class BloodRequestService {
     async confirmDonationMatch(
         matchId: string,
         donorUserId: string
-    ): Promise<RequestMatch & { request: IBloodRequest }> {
+    ): Promise<RequestMatch & { request: PrismaBloodRequest }> {
         this.logger.info('Confirming donation match', {matchId, donorUserId});
 
         const updatedMatch = await prisma.$transaction(async (tx) => {
             // 1. Find the match and verify the donor
             const match = await tx.requestMatch.findUnique({
                 where: {id: matchId},
+                include: {donor: true}
             });
 
             if (!match) {
                 throw new ValidationError('Match not found');
             }
             if (match.donorId !== donorUserId) {
-                throw new HemoBridgeError("Unauthorized",401,'You are not the donor for this match');
+                throw new HemoBridgeError("Unauthorized", 401, 'You are not the donor for this match');
             }
             if (match.status !== 'PENDING') {
                 throw new ValidationError('This match has already been actioned');
@@ -201,7 +203,7 @@ export class BloodRequestService {
         });
 
         // The socket server needs this full object to notify the recipient
-        return updatedMatch as RequestMatch & { request: IBloodRequest };
+        return updatedMatch as RequestMatch & { request: PrismaBloodRequest };
     }
 
 
@@ -215,7 +217,9 @@ export class BloodRequestService {
         try {
             const request = await prisma.bloodRequest.update({
                 where: {id: requestId},
-                data: {status},
+                data: {
+                    status: status as RequestStatus
+                },
             })
 
             this.logger.info('Blood request status updated', {
