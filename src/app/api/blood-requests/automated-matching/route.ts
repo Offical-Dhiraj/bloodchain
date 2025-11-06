@@ -4,7 +4,8 @@ import {NextRequest, NextResponse} from 'next/server'
 import {getServerSession} from 'next-auth'
 import {authOptions} from '@/lib/auth'
 import {prisma} from '@/lib/prisma'
-import {matchingService} from '@/lib/services/matching.service'
+// CHANGED: Import aiService instead of matchingService
+import {aiService} from '@/lib/services/ai.service'
 import {notificationService} from '@/lib/services/notification.service'
 import {Logger} from '@/lib/utils/logger'
 
@@ -51,10 +52,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         logger.info('🔄 Starting automated matching', {requestId})
 
         // Initialize ML model
-        await matchingService.initializeModel()
+        // CHANGED: Use aiService
+        await aiService.initializeModel()
 
         // Find matches using AI
-        const matches = await matchingService.findMatches(requestId, 10)
+        // CHANGED: Use aiService.autonomousMatching
+        const matches = await aiService.autonomousMatching(requestId)
 
         if (matches.length === 0) {
             logger.warn('⚠️ No matches found', {requestId})
@@ -68,8 +71,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             )
         }
 
-        // Create match records
-        const createdMatches = await matchingService.createMatches(matches)
+        // ** NOTE: createMatches is in matching.service, not ai.service.
+        // We will leave this one import for createMatches.
+        // A better refactor would move createMatches into ai.service.
+        const { matchingService } = await import('@/lib/services/matching.service');
+        const createdMatches = await matchingService.createMatches(
+            matches.map(m => ({
+                matchId: `${requestId}-${m.donorId}`, // Reconstruct matchId
+                donorId: m.donorId,
+                score: m.overallScore,
+                features: { // Reconstruct features for the limited createMatches function
+                    bloodTypeScore: m.compatibilityScore,
+                    distanceScore: m.distanceScore,
+                    reputationScore: m.reputationScore,
+                    availabilityScore: m.availabilityScore,
+                    urgencyScore: bloodRequest.urgencyLevel === 'URGENT' ? 1.0 : 0.8, // Approximation
+                    successRateScore: 0, // Data not available in this scope
+                    responseTimeScore: m.responseScore,
+                    fraudRiskScore: 0 // Data not available in this scope
+                }
+            }))
+        );
 
         // Notify top donors
         for (let i = 0; i < Math.min(createdMatches.length, 3); i++) {
