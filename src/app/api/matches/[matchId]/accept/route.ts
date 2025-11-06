@@ -9,7 +9,7 @@ const logger = new Logger('AcceptMatchAPI')
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { matchId: string } }
+    { params }: { params: Promise<{ matchId: string }> }
 ) {
     try {
         const session = await getServerSession(authOptions)
@@ -17,7 +17,7 @@ export async function POST(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const matchId = params.matchId
+        const matchId = (await params).matchId
         const userId = session.user.id
 
         if (!matchId) {
@@ -40,7 +40,7 @@ export async function POST(
         }, { status: 200 })
 
     } catch (error) {
-        logger.error('Failed to accept match', error as Error, { matchId: params.matchId })
+        logger.error('Failed to accept match', error as Error, { matchId: (await params).matchId })
 
         if (error instanceof HemoBridgeError) {
             return NextResponse.json({ error: error.message }, { status: error.statusCode })
