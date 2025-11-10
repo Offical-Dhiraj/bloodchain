@@ -1,28 +1,30 @@
 // lib/utils/logger.ts
 
-import { LogLevel,ILogEntry } from '@/types/logger'
+import { LogLevel, ILogEntry } from '@/types/logger'
 import fs from 'node:fs'
 import path from 'node:path'
+import { env, isProd } from '@/lib/env'
 
 /**
  * COMPREHENSIVE LOGGING SERVICE
  * Structured logging for an entire platform
  */
 
-
 export class Logger {
     private service: string
     private logDir: string
+    private logToFile: boolean
 
     constructor(service: string) {
         this.service = service
-        this.logDir = process.env.LOG_DIR || './logs'
+        this.logDir = env.LOG_DIR || './logs'
+        this.logToFile = (env.LOG_TO_FILE === 'true')
         this.ensureLogDirectory()
     }
 
     private ensureLogDirectory(): void {
-        if (!fs.existsSync(this.logDir)) {
-            fs.mkdirSync(this.logDir, {recursive: true})
+        if (this.logToFile && !fs.existsSync(this.logDir)) {
+            fs.mkdirSync(this.logDir, { recursive: true })
         }
     }
 
@@ -36,12 +38,22 @@ export class Logger {
     }
 
     private writeLog(entry: ILogEntry): void {
-        const logFile = this.getLogFile(entry.level)
         const content = this.formatLogEntry(entry)
 
-        fs.appendFileSync(logFile, content + '\n', 'utf-8')
+        // Write to file only if explicitly enabled
+        if (this.logToFile) {
+            const logFile = this.getLogFile(entry.level)
+            try {
+                fs.appendFileSync(logFile, content + '\n', 'utf-8')
+            } catch (e) {
+                // Fallback to console if file write fails (e.g., serverless)
+                console.error('Logger file write failed:', e)
+                console.log(content)
+            }
+        }
 
-        if (process.env.NODE_ENV !== 'production') {
+        // Always log to console in development; in production, log to console if file logging is disabled
+        if (!isProd || !this.logToFile) {
             console.log(content)
         }
     }

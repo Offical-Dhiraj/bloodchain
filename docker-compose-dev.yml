@@ -1,0 +1,29 @@
+version: '3.9'
+
+services:
+  # PostgreSQL with PostGIS
+  postgresql:
+    image: postgis/postgis:15-3.3
+    container_name: bloodchain
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-bloodchain}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bloodchain-network
+
+networks:
+  bloodchain-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
