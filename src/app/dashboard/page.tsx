@@ -1,63 +1,93 @@
-import { getServerSession } from 'next-auth/next'
-import { redirect } from 'next/navigation'
-import { authOptions } from '@/lib/auth' // Assuming authOptions is in 'lib/auth'
-import { logToServer } from '@/lib/actions/log.action'
-import { getDashboardStats } from '@/lib/actions/dashboard.actions'
-import { LogLevel } from '@/types/logger'
-import { DashboardStats } from '@/lib/types/dashboard' // I've assumed you'll create this type file
+'use client'
+
+import { useSession } from 'next-auth/react'
 import { StatsGrid } from './StatsGrid'
 import { QuickActions } from './QuickActions'
-import {JSX} from "react";
+import BloodMap from '@/components/maps/BloodMap'
+import { useActiveRequests } from '@/hooks/useBloodRequests'
+import { useQuery } from '@tanstack/react-query'
+import { Skeleton } from '@/components/ui/skeleton'
 
-export default async function DashboardPage(): Promise<JSX.Element> {
-    // 1. Get session on the server
-    const session = await getServerSession(authOptions)
+export default function DashboardPage() {
+    const { data: session } = useSession()
 
-    // 2. Handle authentication on the server
-    if (!session?.user) {
-        redirect('/api/auth/signin?callbackUrl=/dashboard')
-    }
-
-    // 3. Fetch data on the server
-    let stats: DashboardStats;
-    try {
-        stats = await getDashboardStats()
-        // Log success (no need to await if you don't need to block)
-        logToServer(LogLevel.INFO, 'Dashboard data fetched successfully')
-    } catch (error) {
-        // Log error
-        logToServer(LogLevel.ERROR, 'Failed to fetch dashboard data', {
-            error: error instanceof Error ? error.message : 'Unknown error'
-        })
-        // Provide default stats on failure
-        stats = {
-            activeRequests: 0,
-            matchedDonors: 0,
-            completedDonations: 0,
-            totalRewards: 0,
+    // Fetch stats using React Query instead of server actions directly in component
+    const { data: stats, isLoading: statsLoading } = useQuery({
+        queryKey: ['dashboard-stats'],
+        queryFn: async () => {
+            const res = await fetch('/api/dashboard/stats')
+            return res.json()
         }
-    }
+    })
 
-    const user = session.user;
+    const { data: activeRequests } = useActiveRequests()
+
+    // Prepare map data
+    const mapLocations = activeRequests?.data?.requests?.map((req: any) => ({
+        lat: req.latitude || 0,
+        lng: req.longitude || 0,
+        title: `${req.unitsNeeded} units of ${req.bloodType}`,
+        type: 'REQUEST'
+    })) || []
+
+    if (!session) return null
 
     return (
-        <div className="p-4 sm:p-8 bg-gray-50 min-h-screen">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
-                        Welcome, {user.name}! 👋
-                    </h1>
-                    <p className="text-gray-600 mt-2">
-                        Your Role: <span className="font-semibold capitalize">{user.role?.toLowerCase()}</span>
-                    </p>
+        <div className="p-4 sm:p-8 bg-gray-50/50 min-h-screen space-y-8">
+            <div className="max-w-7xl mx-auto space-y-8">
+
+                {/* Welcome Header */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+                        <p className="text-muted-foreground">
+                            Overview of your donations and requests.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className={`h-3 w-3 rounded-full ${session ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                        <span className="text-sm font-medium">System Operational</span>
+                    </div>
                 </div>
 
-                {/* Stats Grid (Server Component) */}
-                <StatsGrid stats={stats} />
+                {/* Stats */}
+                {statsLoading ? (
+                    <div className="grid grid-cols-4 gap-4">
+                        {[1,2,3,4].map(i => <Skeleton key={i} className="h-32 w-full" />)}
+                    </div>
+                ) : (
+                    <StatsGrid stats={stats?.data || {}} />
+                )}
 
-                {/* Quick Actions (Client Component) */}
-                <QuickActions role={user.role} />
+                {/* Main Content Grid */}
+                <div className="grid lg:grid-cols-3 gap-8">
+
+                    {/* Left Column: Actions & Map */}
+                    <div className="lg:col-span-2 space-y-8">
+                        <QuickActions role={session.user.role} />
+
+                        <div className="bg-white p-6 rounded-xl border shadow-sm">
+                            <h2 className="text-xl font-semibold mb-4">Live Activity Map</h2>
+                            <BloodMap locations={mapLocations} />
+                        </div>
+                    </div>
+
+                    {/* Right Column: Notifications/Recent Activity */}
+                    <div className="bg-white p-6 rounded-xl border shadow-sm h-fit">
+                        <h2 className="text-xl font-semibold mb-4">Recent Notifications</h2>
+                        {/* We can connect this to the Zustand store notifications later */}
+                        <div className="space-y-4">
+                            <div className="p-3 bg-blue-50 text-blue-700 rounded-lg text-sm">
+                                System connected to Socket Server.
+                            </div>
+                            {/* Placeholder for real notifications */}
+                            <p className="text-sm text-gray-500 text-center py-4">
+                                No new alerts
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
             </div>
         </div>
     )
