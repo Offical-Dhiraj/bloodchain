@@ -34,11 +34,11 @@ const steps = [
 
 export default function NewRequestPage() {
     const [currentStep, setCurrentStep] = useState(1)
-    const [isLocating, setIsLocating] = useState(false) // Loading state for location
+    const [isLocating, setIsLocating] = useState(false)
     const router = useRouter()
     const createRequest = useCreateBloodRequest()
 
-    // Removed generic <FormData> to allow Zod inference to handle optional/default fields correctly
+    // FIX: Removed <FormData> generic to allow Zod to handle default/optional inference correctly
     const {register, handleSubmit, setValue, watch, formState: {errors}} = useForm({
         resolver: zodResolver(requestSchema),
         defaultValues: {
@@ -49,7 +49,7 @@ export default function NewRequestPage() {
         }
     })
 
-    // Implementation of Geolocation API
+    // Implementation of Browser Geolocation API
     const handleGetLocation = () => {
         setIsLocating(true)
 
@@ -61,36 +61,21 @@ export default function NewRequestPage() {
 
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                // Success callback
                 setValue('latitude', position.coords.latitude, { shouldValidate: true })
                 setValue('longitude', position.coords.longitude, { shouldValidate: true })
                 setIsLocating(false)
             },
             (error) => {
-                // Error callback
                 console.error("Error fetching location:", error)
                 let errorMessage = "Could not fetch location."
-
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        errorMessage = "Location permission denied. Please enable location services."
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        errorMessage = "Location information is unavailable."
-                        break;
-                    case error.TIMEOUT:
-                        errorMessage = "The request to get user location timed out."
-                        break;
-                }
+                if (error.code === 1) errorMessage = "Location permission denied."
+                else if (error.code === 2) errorMessage = "Location unavailable."
+                else if (error.code === 3) errorMessage = "Location request timed out."
 
                 alert(errorMessage)
                 setIsLocating(false)
             },
-            {
-                enableHighAccuracy: true, // Request best possible results (GPS)
-                timeout: 10000,           // Wait max 10 seconds
-                maximumAge: 0             // Do not use cached position
-            }
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
         )
     }
 
@@ -243,11 +228,11 @@ export default function NewRequestPage() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Input placeholder="Latitude" {...register('latitude', {valueAsNumber: true})} readOnly/>
-                                               {errors.latitude && <span className="text-xs text-red-500">Required</span>}
+                                               {errors.latitude && <span className="text-xs text-red-500">Latitude is required</span>}
                                         </div>
                                         <div className="space-y-2">
                                             <Input placeholder="Longitude" {...register('longitude', {valueAsNumber: true})} readOnly/>
-                                               {errors.longitude && <span className="text-xs text-red-500">Required</span>}
+                                               {errors.longitude && <span className="text-xs text-red-500">Longitude is required</span>}
                                         </div>
                                     </div>
                                 </div>
