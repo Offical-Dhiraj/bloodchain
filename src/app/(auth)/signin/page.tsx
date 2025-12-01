@@ -1,16 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import {useState} from 'react'
+import {signIn} from 'next-auth/react'
+import {useRouter} from 'next/navigation'
+import {motion} from 'framer-motion'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button' // Assumes shadcn button
-import { Input } from '@/components/ui/input'   // Assumes shadcn input
-import { Label } from '@/components/ui/label'
-import { Loader2 } from 'lucide-react'
-import { logToServer } from '@/lib/actions/log.action'
-import { LogLevel } from '@/types/logger'
+import {Button} from '@/components/ui/button'
+import {Input} from '@/components/ui/input'
+import {Label} from '@/components/ui/label' // Ensure you have this component or use standard label
+import {Loader2} from 'lucide-react'
+import {logToServer} from '@/lib/actions/log.action'
+import {LogLevel} from '@/types/logger'
 
 export default function SignInPage() {
     const [loading, setLoading] = useState(false)
@@ -29,8 +29,8 @@ export default function SignInPage() {
             })
 
             if (result?.error) {
-                // Add toast error here
                 console.error(result.error)
+                // Ideally trigger a toast notification here
             } else {
                 await logToServer(LogLevel.INFO, 'User logged in successfully')
                 router.push('/dashboard')
@@ -42,8 +42,8 @@ export default function SignInPage() {
 
     return (
         <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{opacity: 0, x: 20}}
+            animate={{opacity: 1, x: 0}}
             className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]"
         >
             <div className="flex flex-col space-y-2 text-center">
@@ -81,7 +81,7 @@ export default function SignInPage() {
                             />
                         </div>
                         <Button disabled={loading} className="bg-red-600 hover:bg-red-700">
-                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                             Sign In
                         </Button>
                     </div>
@@ -89,7 +89,7 @@ export default function SignInPage() {
 
                 <div className="relative">
                     <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
+                        <span className="w-full border-t"/>
                     </div>
                     <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-background px-2 text-muted-foreground">
