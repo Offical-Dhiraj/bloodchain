@@ -1,48 +1,48 @@
-import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query'
+"use client"
 
-export interface BloodRequestData {
+import { useQuery, useMutation } from "@tanstack/react-query"
+
+interface ActiveRequest {
+    id: string
+    latitude: number | null
+    longitude: number | null
+    unitsNeeded: number
     bloodType: string
-    rhFactor: string
-    units: number
-    urgency: string
-    latitude: number
-    longitude: number
-    radius: number
+    urgencyLevel: string
+    createdAt: string
 }
 
-// Fetch active requests
+// ---- ACTIVE REQUESTS (for dashboard map) ----
 export function useActiveRequests() {
     return useQuery({
-        queryKey: ['active-requests'],
+        queryKey: ["active-requests"],
         queryFn: async () => {
-            const res = await fetch('/api/blood-requests/active')
-            if (!res.ok) throw new Error('Failed to fetch requests')
-            return res.json()
-        }
+            const res = await fetch("/api/requests/active")
+            if (!res.ok) {
+                throw new Error("Failed to fetch active requests")
+            }
+            // shape: { data: { requests: ActiveRequest[] } }
+            return res.json() as Promise<{ data: { requests: ActiveRequest[] } }>
+        },
     })
 }
 
-// Create a new request
-export function useCreateBloodRequest() {
-    const queryClient = useQueryClient()
+// ---- EXAMPLE: create blood request hook (if you don’t already have it) ----
+import type { z } from "zod"
+import { requestSchema } from "@/schemas/requestSchema" // or where you keep it
 
+type CreateRequestInput = z.infer<typeof requestSchema>
+
+export function useCreateBloodRequest() {
     return useMutation({
-        mutationFn: async (data: BloodRequestData) => {
-            const res = await fetch('/api/blood-requests/create', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data),
+        mutationFn: async (payload: CreateRequestInput) => {
+            const res = await fetch("/api/requests", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
             })
-            if (!res.ok) {
-                const error = await res.json()
-                throw new Error(error.message || 'Failed to create request')
-            }
+            if (!res.ok) throw new Error("Failed to create blood request")
             return res.json()
         },
-        onSuccess: () => {
-            // Invalidate queries to refresh data
-            queryClient.invalidateQueries({queryKey: ['active-requests']})
-            queryClient.invalidateQueries({queryKey: ['dashboard-stats']})
-        }
     })
 }

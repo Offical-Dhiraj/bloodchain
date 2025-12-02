@@ -1,37 +1,55 @@
 import { NextResponse } from "next/server"
-import prisma from "@/lib/prisma"
+import prisma from "@/lib/prisma" // adjust if your prisma client is elsewhere
+import { RequestStatus, DonationStatus } from "@prisma/client"
 
 export async function GET() {
     try {
-        const active = await prisma.bloodRequest.count({
-            where: { status: "OPEN" }
+        // Active = OPEN blood requests
+        const activeRequests = await prisma.bloodRequest.count({
+            where: { status: RequestStatus.OPEN },
         })
 
-        const matched = await prisma.bloodRequest.count({
-            where: { status: "MATCHED" }
+        // Matched donors = blood requests that are MATCHED
+        const matchedDonors = await prisma.bloodRequest.count({
+            where: { status: RequestStatus.MATCHED },
         })
 
-        const completed = await prisma.bloodRequest.count({
-            where: { status: "FULFILLED" }
+        // Completed donations
+        const completedDonations = await prisma.donation.count({
+            where: { status: DonationStatus.COMPLETED },
         })
 
-        const rewardsAgg = await prisma.donorProfile.aggregate({
+        // Total rewards (sum of rewardTokensIssued across all donations)
+        const rewardsAgg = await prisma.donation.aggregate({
             _sum: {
-                totalRewardsEarned: true,
+                rewardTokensIssued: true,
             },
         })
-        const totalRewards = rewardsAgg._sum.totalRewardsEarned ?? 0
+
+        const totalRewards = rewardsAgg._sum.rewardTokensIssued ?? 0
 
         return NextResponse.json({
             data: {
-                activeRequests: active,
-                matchedDonors: matched,
-                completedDonations: completed,
-                totalRewards
-            }
+                activeRequests,
+                matchedDonors,
+                completedDonations,
+                totalRewards,
+            },
         })
-    } catch (e) {
-        console.error(e)
-        return NextResponse.json({ data: {} }, { status: 500 })
+    } catch (error) {
+        console.error("[GET /api/dashboard/stats] ERROR:", error)
+
+        // Safe fallback so your dashboard doesn’t crash
+        return NextResponse.json(
+            {
+                data: {
+                    activeRequests: 0,
+                    matchedDonors: 0,
+                    completedDonations: 0,
+                    totalRewards: 0,
+                },
+            },
+            { status: 500 },
+        )
     }
 }

@@ -149,6 +149,7 @@ model DonorProfile {
 
   @@index([bloodType])
   @@index([isAvailable])
+  @@index([latitude, longitude])
   @@map("donor_profiles")
 }
 
@@ -225,6 +226,7 @@ model BloodRequest {
   @@index([status])
   @@index([bloodType])
   @@index([urgencyLevel])
+  @@index([latitude, longitude])
   @@map("blood_requests")
 }
 
