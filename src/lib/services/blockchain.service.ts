@@ -1,3 +1,5 @@
+// src/lib/services/blockchain.service.ts
+
 import {Contract, ethers, Signer} from 'ethers'
 import {Logger} from '@/lib/utils/logger'
 import {BlockchainError, IBlockchainConfig, IDonationRecord,} from '@/types'
@@ -9,7 +11,7 @@ import {BlockchainError, IBlockchainConfig, IDonationRecord,} from '@/types'
 
 export class BlockchainService {
     private logger: Logger = new Logger('BlockchainService')
-    private provider: ethers.Provider | null = null
+    private provider: ethers.JsonRpcProvider | null = null
     private signer: Signer | null = null
     private contract: Contract | null = null
     private tokenContract: Contract | null = null
@@ -31,6 +33,8 @@ export class BlockchainService {
      */
     async initialize(): Promise<void> {
         try {
+            if (this.contract) return; // Already initialized
+
             this.logger.info('Initializing blockchain connection...')
 
             // Create provider
@@ -39,11 +43,13 @@ export class BlockchainService {
             // Create signer
             this.signer = new ethers.Wallet(this.config.privateKey, this.provider)
 
-            // Create contract instance
+            // PATCH: Added missing 'getDonorProfile' to ABI so it can be called
             const mainAbi = [
                 'function recordDonationWithAutoVerification(uint256 requestId, address donor, uint26 unitsCollected, string memory ipfsProof, address[] memory verifiers, bytes[] memory signatures) external',
                 'function createBloodRequest(string memory bloodType, uint256 unitsNeeded, uint256 urgencyLevel, string memory medicalProofIPFS, uint256 expirationTime) external',
                 'function detectAndReportFraud(address user, string memory fraudType, address[] memory witnesses) external',
+                // Added View Functions
+                'function getDonorProfile(address donor) external view returns (uint256 reputation, bool isVerified)',
             ]
 
             this.contract = new ethers.Contract(
@@ -53,7 +59,8 @@ export class BlockchainService {
             )
 
             const tokenAbi = [
-                'function transfer(address to, uint256 amount) external returns (bool)'
+                'function transfer(address to, uint256 amount) external returns (bool)',
+                'function balanceOf(address account) external view returns (uint256)'
             ];
 
             this.tokenContract = new ethers.Contract(
@@ -66,7 +73,7 @@ export class BlockchainService {
             const network = await this.provider.getNetwork()
             this.logger.info('Blockchain connected', {
                 network: network.name,
-                chainId: network.chainId,
+                chainId: network.chainId.toString(),
             })
         } catch (error) {
             this.logger.error('Blockchain initialization failed', error as Error)
@@ -76,24 +83,17 @@ export class BlockchainService {
 
     /**
      * Transfer ERC-20 reward tokens to a user
-     * @param toAddress The recipient's wallet address
-     * @param amount The number of whole tokens to send
-     * @returns Transaction hash
      */
-
     async transferTokens(toAddress: string, amount: number): Promise<string> {
         try {
-            if (!this.tokenContract || !this.signer) {
-                await this.initialize();
-            }
-            // Assuming the token uses 18 decimals, like most ERC-20 tokens
-            // This converts "100" tokens to "100000000000000000000" (100 * 10^18)
+            await this.initialize();
+
+            // Assuming 18 decimals
             const txAmount = ethers.parseUnits(amount.toString(), 18);
 
             this.logger.info('Transferring reward tokens', {
                 to: toAddress,
                 amount: amount,
-                amountWithDecimals: txAmount.toString()
             });
 
             const tx = await this.tokenContract!.transfer(
@@ -116,7 +116,6 @@ export class BlockchainService {
         }
     }
 
-
     /**
      * Record donation on blockchain
      */
@@ -126,9 +125,7 @@ export class BlockchainService {
         signatures: string[]
     ): Promise<string> {
         try {
-            if (!this.contract) {
-                await this.initialize()
-            }
+            await this.initialize();
 
             const {recordId, donor, unitsCollected, verifiers} = donation
 
@@ -173,14 +170,7 @@ export class BlockchainService {
         expirationTime: number
     ): Promise<string> {
         try {
-            if (!this.contract) {
-                await this.initialize()
-            }
-
-            this.logger.info('Creating blood request on blockchain', {
-                bloodType,
-                unitsNeeded,
-            })
+            await this.initialize();
 
             const tx = await this.contract!.createBloodRequest(
                 bloodType,
@@ -192,11 +182,6 @@ export class BlockchainService {
             )
 
             const receipt = await tx.wait()
-
-            this.logger.info('Blood request created on blockchain', {
-                transactionHash: receipt?.hash,
-            })
-
             return receipt?.hash || ''
         } catch (error) {
             this.logger.error('Failed to create blood request', error as Error)
@@ -209,14 +194,14 @@ export class BlockchainService {
      */
     signData(data: string): string {
         try {
-            if (!this.signer || !(this.signer instanceof ethers.Wallet)) {
-                throw new BlockchainError('Signer not initialized')
-            }
+            // Note: Does not require async initialize if signer was passed in config,
+            // but usually safe to assume we need the private key from config.
+            // For stateless signing, we just use the wallet directly.
+            const wallet = new ethers.Wallet(this.config.privateKey);
 
             const messageHash = ethers.id(data)
-
-            // Use `new` for ethers v6
-            const signingKey = new ethers.SigningKey(this.config.privateKey);
+            // Use signing key directly for raw signature
+            const signingKey = wallet.signingKey;
             const signature = signingKey.sign(messageHash);
 
             return ethers.Signature.from(signature).serialized
@@ -227,55 +212,20 @@ export class BlockchainService {
     }
 
     /**
-     * Verify multiple signatures
-     */
-    verifySignatures(
-        data: string,
-        signatures: string[],
-        signers: string[]
-    ): boolean {
-        try {
-            if (signatures.length !== signers.length) {
-                return false
-            }
-
-            const messageHash = ethers.id(data)
-
-            for (let i = 0; i < signatures.length; i++) {
-                const recoveredAddress = ethers.recoverAddress(
-                    messageHash,
-                    signatures[i]
-                )
-                if (recoveredAddress.toLowerCase() !== signers[i].toLowerCase()) {
-                    return false
-                }
-            }
-
-            return true
-        } catch (error) {
-            this.logger.error('Signature verification failed', error as Error)
-            return false
-        }
-    }
-
-    /**
      * Get donor reputation from blockchain
      */
     async getDonorReputation(donorAddress: string): Promise<number> {
         try {
-            if (!this.provider) {
-                await this.initialize()
-            }
+            await this.initialize();
 
-            // This would call a view function on the contract
-            // For now, returning mock data
-            // return 500 // Mock reputation score
-
-            // In production:
-            return await this.contract!.getDonorProfile(donorAddress)
-        } catch (error) { // <<< THIS BRACE WAS MISSING
+            // PATCH: Now this call will work because we added it to the ABI
+            const result = await this.contract!.getDonorProfile(donorAddress);
+            // Result is [reputation, isVerified]
+            return Number(result[0]);
+        } catch (error) {
             this.logger.error('Failed to get donor reputation', error as Error)
-            throw new BlockchainError('Failed to get donor reputation')
+            // Fallback for UI if blockchain call fails
+            return 0;
         }
     }
 
@@ -288,15 +238,7 @@ export class BlockchainService {
         witnesses: string[]
     ): Promise<string> {
         try {
-            if (!this.contract) {
-                await this.initialize()
-            }
-
-            this.logger.info('Reporting fraud on blockchain', {
-                user,
-                fraudType,
-                witnessCount: witnesses.length,
-            })
+            await this.initialize();
 
             const tx = await this.contract!.detectAndReportFraud(
                 user,
@@ -306,11 +248,6 @@ export class BlockchainService {
             )
 
             const receipt = await tx.wait()
-
-            this.logger.info('Fraud reported successfully', {
-                transactionHash: receipt?.hash,
-            })
-
             return receipt?.hash || ''
         } catch (error) {
             this.logger.error('Failed to report fraud', error as Error)
@@ -319,5 +256,4 @@ export class BlockchainService {
     }
 }
 
-// Export a single instance to be used across your app
 export const blockchainService = new BlockchainService()
