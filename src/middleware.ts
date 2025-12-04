@@ -59,7 +59,9 @@ export async function middleware(req: NextRequest) {
     // If user is logged in, redirect them away from signin/signup
     if (pathname === "/signin" || pathname === "/signup") {
         if (isAuthenticated) {
-            return NextResponse.redirect(new URL("/dashboard", req.url))
+            if (req.method !== 'POST') {
+                return NextResponse.redirect(new URL("/dashboard", req.url))
+            }
         }
         return NextResponse.next()
     }

@@ -11,6 +11,7 @@ import {Label} from '@/components/ui/label' // Ensure you have this component or
 import {Loader2} from 'lucide-react'
 import {logToServer} from '@/lib/actions/log.action'
 import {LogLevel} from '@/types/logger'
+import {toast} from "sonner";
 
 export default function SignInPage() {
     const [loading, setLoading] = useState(false)
@@ -30,9 +31,9 @@ export default function SignInPage() {
 
             if (result?.error) {
                 console.error(result.error)
-                // Ideally trigger a toast notification here
+                toast.error(result.error ?? 'Failed to login')
             } else {
-                await logToServer(LogLevel.INFO, 'User logged in successfully')
+                toast.success('Logged in successfully')
                 router.push('/dashboard')
             }
         } finally {

@@ -3,9 +3,10 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { DashboardStats } from '../types/dashboard'
-import { logToServer } from './log.action' // Assuming log action is in the same directory
+import { logToServer } from './log.action'
 import { LogLevel } from '@/types/logger'
-import { headers } from 'next/headers' // To forward cookies
+import { prisma } from '@/lib/prisma'
+import { RequestStatus, DonationStatus } from '@prisma/client'
 
 export const getDashboardStats = async (): Promise<DashboardStats> => {
     // 1. Validate session
@@ -14,50 +15,48 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
         throw new Error('Unauthorized')
     }
 
-    // 2. Fetch data from the internal API route
     try {
-        // We need the absolute URL to fetch from an API route within a server action
-        // NEXT_PUBLIC_APP_URL should be set in your .env file (e.g., http://localhost:3000)
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-        if (!baseUrl) {
-            throw new Error('NEXT_PUBLIC_APP_URL is not set in environment variables.')
-        }
-
-        // Fetch from your API route
-        const response = await fetch(`${baseUrl}/api/dashboard/stats`, {
-            method: 'GET',
-            headers: {
-                // Forward cookies (like the auth session cookie) to the API route
-                'Cookie': (await headers()).get('Cookie') || '',
-            },
-            // Caching can be controlled here.
-            // 'no-store' ensures fresh data, just like your original client component.
-            cache: 'no-store',
+        // 2. Query Database Directly (No fetch)
+        // Active = OPEN blood requests
+        const activeRequests = await prisma.bloodRequest.count({
+            where: { status: RequestStatus.OPEN },
         })
 
-        if (!response.ok) {
-            throw new Error(`API request failed with status ${response.status}`)
-        }
+        // Matched donors = blood requests that are MATCHED
+        const matchedDonors = await prisma.bloodRequest.count({
+            where: { status: RequestStatus.MATCHED },
+        })
 
-        const data = await response.json()
+        // Completed donations
+        const completedDonations = await prisma.donation.count({
+            where: { status: DonationStatus.COMPLETED },
+        })
 
-        if (!data.success) {
-            throw new Error(data.message || 'API returned success: false')
-        }
+        // Total rewards
+        const rewardsAgg = await prisma.donation.aggregate({
+            _sum: {
+                rewardTokensIssued: true,
+            },
+        })
+
+        const totalRewards = rewardsAgg._sum.rewardTokensIssued ?? 0
 
         // Log success
-        await logToServer(LogLevel.INFO, 'Dashboard stats fetched via API route')
+        await logToServer(LogLevel.INFO, 'Dashboard stats fetched via Server Action')
 
-        return data.data as DashboardStats
+        return {
+            activeRequests,
+            matchedDonors,
+            completedDonations,
+            totalRewards,
+        }
 
     } catch (error) {
         // Log the error
-        await logToServer(LogLevel.ERROR, 'Failed to fetch dashboard stats from API', {
+        await logToServer(LogLevel.ERROR, 'Failed to fetch dashboard stats', {
             error: error instanceof Error ? error.message : 'Unknown error'
         })
 
-        // Re-throw or return default stats
-        // Re-throwing will be caught by the <Error> boundary in Next.js
         throw new Error('Could not fetch dashboard statistics.')
     }
 }

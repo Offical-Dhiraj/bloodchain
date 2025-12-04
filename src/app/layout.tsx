@@ -5,6 +5,7 @@ import React, {JSX} from "react";
 import Providers from "@/app/providers";
 import {Header} from "@/components/layout/Header";
 import {Footer} from '@/components/layout/Footer';
+import {Toaster} from "@/components/ui/sonner";
 
 // Set up the font
 const inter = Inter({
@@ -45,6 +46,8 @@ export default function RootLayout({children}: RootLayoutProps): JSX.Element {
         <Providers session={null}>
             <div className="relative flex min-h-screen flex-col">
                 <Header/>
+                <Toaster
+                />
                 <main className="flex-1">
                     {children}
                 </main>
