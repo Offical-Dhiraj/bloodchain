@@ -3,6 +3,7 @@
 import {useEffect, useState} from 'react'
 import dynamic from 'next/dynamic'
 import {Skeleton} from '@/components/ui/skeleton'
+import 'leaflet/dist/leaflet.css'
 
 // Dynamically import Leaflet components with no SSR
 const MapContainer = dynamic(

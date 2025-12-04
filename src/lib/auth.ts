@@ -13,9 +13,21 @@ import {Logger} from '@/lib/utils/logger'
  */
 
 const logger = new Logger('NextAuth')
-
+const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith('https://');
 export const authOptions: NextAuthOptions = {
     adapter: PrismaAdapter(prisma),
+
+    cookies: {
+        sessionToken: {
+            name: `${useSecureCookies ? '__Secure-' : ''}next-auth.session-token`,
+            options: {
+                httpOnly: true,
+                sameSite: 'lax',
+                path: '/',
+                secure: useSecureCookies,
+            }
+        }
+    },
 
     providers: [
         // Google OAuth Provider

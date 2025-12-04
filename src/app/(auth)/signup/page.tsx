@@ -49,7 +49,7 @@ export default function SignUpPage() {
       const { confirmPassword, ...registrationData } = data;
 
       // TODO: Replace with your actual Server Action or API call
-      const response = await fetch("/auth/register", {
+      const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
