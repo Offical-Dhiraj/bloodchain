@@ -5,15 +5,12 @@ import GoogleProvider from 'next-auth/providers/google'
 import {prisma} from '@/lib/prisma'
 import {UserRole, VerificationStatus} from '@prisma/client'
 import {validateUserCredentials} from '@/lib/services/auth.service'
+import {fraudDetectionService} from '@/lib/services/fraud-detection.service'
 import {Logger} from '@/lib/utils/logger'
-
-/**
- * NEXTAUTH CONFIGURATION
- * Authentication setup with multiple providers
- */
 
 const logger = new Logger('NextAuth')
 const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith('https://');
+
 export const authOptions: NextAuthOptions = {
     adapter: PrismaAdapter(prisma),
 
@@ -30,24 +27,21 @@ export const authOptions: NextAuthOptions = {
     },
 
     providers: [
-        // Google OAuth Provider
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID || '',
             clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
             profile(profile) {
-                // This object's fields MUST match your Prisma User model
                 return {
                     id: profile.sub,
                     name: profile.name,
                     email: profile.email,
-                    role: UserRole.DONOR, // Use the Enum
-                    verificationStatus: VerificationStatus.PENDING, // Use the Enum
+                    role: UserRole.DONOR,
+                    verificationStatus: VerificationStatus.PENDING,
                     blockedFromPlatform: false
                 }
             },
         }),
 
-        // Credentials Provider (Email/Password)
         CredentialsProvider({
             name: 'Credentials',
             credentials: {
@@ -57,7 +51,6 @@ export const authOptions: NextAuthOptions = {
             async authorize(credentials, req) {
                 try {
                     if (!credentials?.email || !credentials?.password) {
-                        logger.warn('Login attempt with missing credentials')
                         throw new Error('Missing email or password')
                     }
 
@@ -67,15 +60,23 @@ export const authOptions: NextAuthOptions = {
                     })
 
                     if (!user) {
-                        logger.warn('Login attempt failed: Invalid credentials', {
-                            email: credentials.email,
-                        })
                         throw new Error('Invalid credentials')
                     }
 
                     if (user.blockedFromPlatform) {
-                        logger.warn('Login attempt by blocked user', {userId: user.id})
                         throw new Error('This account has been suspended.')
+                    }
+
+                    // PATCH: Fraud Detection Check
+                    // We run this asynchronously so it doesn't block login unless critical
+                    const fraudCheck = await fraudDetectionService.analyzeFraudRisk(user.id, {
+                        event: 'LOGIN',
+                        ip: 'captured-in-middleware', // In prod, pass actual IP if available
+                    })
+
+                    if (fraudCheck.risk === 'critical') {
+                        logger.warn('Critical fraud risk detected during login', { userId: user.id })
+                        throw new Error('Account flagged for security review.')
                     }
 
                     logger.info('User authenticated successfully', {userId: user.id})
@@ -89,7 +90,6 @@ export const authOptions: NextAuthOptions = {
         }),
     ],
 
-    // Callbacks are type-safe (assuming types/next-auth.d.ts exists)
     callbacks: {
         async jwt({token, user}) {
             if (user) {
@@ -108,20 +108,6 @@ export const authOptions: NextAuthOptions = {
             }
             return session
         },
-
-        async signIn({user, account, profile, email, credentials}) {
-            logger.info('User sign in', {
-                userId: user.id,
-                provider: account?.provider,
-            })
-            return true
-        },
-
-        async redirect({url, baseUrl}) {
-            if (url.startsWith('/')) return `${baseUrl}${url}`
-            else if (new URL(url).origin === baseUrl) return url
-            return baseUrl
-        },
     },
 
     session: {
@@ -133,9 +119,7 @@ export const authOptions: NextAuthOptions = {
         signIn: '/signin',
         signOut: '/signout',
         error: '/signin',
-        verifyRequest: '/verify',
     },
 
     secret: process.env.NEXTAUTH_SECRET,
 }
-

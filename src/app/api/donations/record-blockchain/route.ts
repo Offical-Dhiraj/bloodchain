@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import { blockchainService } from '@/lib/services/blockchain.service'
-import { Logger } from '@/lib/utils/logger'
+import {NextRequest, NextResponse} from 'next/server'
+import {getServerSession} from 'next-auth'
+import {authOptions} from '@/lib/auth'
+import {prisma} from '@/lib/prisma'
+import {blockchainService} from '@/lib/services/blockchain.service'
+import {rewardService} from '@/lib/services/reward.service'
+import {reputationService} from '@/lib/services/reputation.service'
+import {Logger} from '@/lib/utils/logger'
 import {
     IApiResponse,
     IDonationRecord,
@@ -17,7 +19,7 @@ const logger = new Logger('DonationAPI')
 export async function POST(
     request: NextRequest
 ): Promise<NextResponse<IApiResponse<any>>> {
-    let donationId: string | null = null // Variable to hold the ID for cleanup
+    let donationId: string | null = null
 
     try {
         logger.info('POST /api/donations/record-blockchain')
@@ -31,7 +33,7 @@ export async function POST(
                     statusCode: 401,
                     timestamp: new Date(),
                 },
-                { status: 401 }
+                {status: 401}
             )
         }
 
@@ -39,7 +41,7 @@ export async function POST(
 
         // 1. Get match details
         const match = await prisma.requestMatch.findUnique({
-            where: { id: body.matchId },
+            where: {id: body.matchId},
             include: {
                 request: true,
             },
@@ -49,7 +51,7 @@ export async function POST(
             throw new ValidationError('Match not found')
         }
 
-        // 2. Create preliminary donation record in DB to get an ID
+        // 2. Create preliminary donation record
         const preliminaryDonation = await prisma.donation.create({
             data: {
                 matchId: body.matchId,
@@ -58,33 +60,30 @@ export async function POST(
                 bloodType: match.request.bloodType as any,
                 rhFactor: match.request.rhFactor,
                 unitsCollected: body.unitsCollected,
-                status: 'PENDING' as any, // Pending blockchain confirmation
+                status: 'PENDING' as any,
                 blockchainVerified: false,
                 rewardTokensIssued: 0,
                 nftMinted: false,
             },
         })
 
-        donationId = preliminaryDonation.id // Store the ID
+        donationId = preliminaryDonation.id
 
-        // 3. Prepare the data for the blockchain service
-        //    This now correctly uses the numeric ID from the record we just created.
+        // 3. Prepare blockchain data
         const donationDataForContract: IDonationRecord = {
-            recordId: preliminaryDonation.id, // This is a number!
+            recordId: preliminaryDonation.id,
             donor: preliminaryDonation.donorId,
             recipient: match.request.recipientId,
             bloodType: preliminaryDonation.bloodType,
             unitsCollected: preliminaryDonation.unitsCollected,
-            verifiers: [], // Your original logic passed an empty array
-
-            // Fill in the rest of the interface
+            verifiers: [],
             timestamp: Math.floor(preliminaryDonation.createdAt.getTime() / 1000),
             verified: false,
             rewardIssued: 0,
             nftMinted: false,
         };
 
-        // 4. Initialize and call the blockchain service
+        // 4. Record on Blockchain
         await blockchainService.initialize()
         const transactionHash = await blockchainService.recordDonation(
             donationDataForContract,
@@ -92,25 +91,39 @@ export async function POST(
             body.verifierSignatures
         )
 
-        // 5. Update the donation record with blockchain data
+        // 5. Issue Rewards via Service
         const rewardAmount = body.unitsCollected * 100
+        await rewardService.issueTokenReward({
+            userId: match.donorId,
+            eventType: 'DONATION_COMPLETED',
+            amount: rewardAmount,
+            description: `Reward for donation ${donationId}`
+        })
+
+        // 6. Update Reputation via Service
+        await reputationService.recordEvent({
+            userId: match.donorId,
+            eventType: 'SUCCESSFUL_DONATION',
+            points: 100,
+            multiplier: match.request.urgencyLevel === 'EMERGENCY' ? 2 : 1
+        })
+
+        // 7. Check for NFT Milestones
+        // Example: Check if user reached 10 donations
+        const donorStats = await reputationService.getStats(match.donorId)
+        if (donorStats.totalDonations % 10 === 0) {
+            await rewardService.mintNFTBadge(match.donorId, 'GOLD_DONOR')
+        }
+
+        // 8. Finalize Record
         await prisma.donation.update({
-            where: { id: donationId },
+            where: {id: donationId},
             data: {
                 status: 'COMPLETED' as any,
                 transactionHash,
                 blockchainVerified: true,
                 rewardTokensIssued: rewardAmount,
                 nftMinted: true,
-            },
-        })
-
-        // 6. Update donor profile
-        await prisma.donorProfile.update({
-            where: { userId: match.donorId },
-            data: {
-                totalSuccessfulDonations: { increment: 1 },
-                totalRewardsEarned: { increment: rewardAmount },
             },
         })
 
@@ -132,14 +145,13 @@ export async function POST(
                 statusCode: 201,
                 timestamp: new Date(),
             },
-            { status: 201 }
+            {status: 201}
         )
     } catch (error) {
         logger.error('Failed to record donation', error as Error)
 
-        // **CRITICAL:** If blockchain call fails, roll back the DB entry
         if (error instanceof BlockchainError && donationId) {
-            await prisma.donation.delete({ where: { id: donationId } })
+            await prisma.donation.delete({where: {id: donationId}})
 
             return NextResponse.json(
                 {
@@ -148,7 +160,7 @@ export async function POST(
                     statusCode: 500,
                     timestamp: new Date(),
                 },
-                { status: 500 }
+                {status: 500}
             )
         }
 
@@ -159,7 +171,7 @@ export async function POST(
                 statusCode: 500,
                 timestamp: new Date(),
             },
-            { status: 500 }
+            {status: 500}
         )
     }
 }
