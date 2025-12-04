@@ -48,7 +48,7 @@ export const verificationSchema = z.object({
     proofData: z.record(z.string(), z.any()),
 })
 
-// Donor Profile Schema (New from file 2)
+// Donor ProfileClient Schema (New from file 2)
 export const donorProfileSchema = z.object({
     // Consider using z.nativeEnum(BloodType) for consistency
     bloodType: z.string().min(1),

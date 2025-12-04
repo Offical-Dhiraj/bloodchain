@@ -42,7 +42,7 @@ export function QuickActions({ role }: QuickActionsProps) {
                 </div>
             )}
 
-            {/* Profile Settings card - visible to all roles */}
+            {/* ProfileClient Settings card - visible to all roles */}
             <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100">
                 <h2 className="text-2xl font-bold mb-4 text-gray-800">Profile Settings</h2>
                 <p className="text-gray-600 mb-4">Keep your contact information and blood type up to date.</p>
