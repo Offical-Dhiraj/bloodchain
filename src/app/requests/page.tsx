@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MapPin, Clock, Droplet, AlertCircle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import Link from "next/link";
 
 export default function RequestsPage() {
     const { data, isLoading } = useQuery({
@@ -74,9 +75,9 @@ export default function RequestsPage() {
                                     </div>
                                 </CardContent>
                                 <CardFooter>
-                                    <Button className="w-full" variant="outline">
+                                    <Link className="w-full" href={`/requests/${req.id}`}>
                                         View Details
-                                    </Button>
+                                    </Link>
                                 </CardFooter>
                             </Card>
                         ))

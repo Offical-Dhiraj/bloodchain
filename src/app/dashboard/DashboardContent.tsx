@@ -44,12 +44,15 @@ export function DashboardContent({session}: DashboardContentProps) {
         lat: req.latitude || 0,
         lng: req.longitude || 0,
         title: `${req.unitsNeeded} units of ${req.bloodType}`,
-        type: 'REQUEST'
+        type: 'REQUEST',
+        id: req.id,
     }))
+
+    console.log(`mapLocations`, mapLocations)
 
     const hasMapData = mapLocations.length > 0
 
-    const { data: myRequestsData } = useQuery({
+    const {data: myRequestsData} = useQuery({
         queryKey: ['my-requests'],
         queryFn: async () => {
             const res = await fetch('/api/requests')
@@ -97,13 +100,14 @@ export function DashboardContent({session}: DashboardContentProps) {
                 {session.user.role === 'RECIPIENT' && myRequests.length > 0 && (
                     <div className="bg-white p-6 rounded-xl border shadow-sm mb-8">
                         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                            <AlertTriangle className="text-orange-500" />
+                            <AlertTriangle className="text-orange-500"/>
                             My Active Requests
                         </h2>
 
                         <div className="space-y-4">
                             {myRequests.map((req: any) => (
-                                <div key={req.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-lg bg-slate-50 gap-4">
+                                <div key={req.id}
+                                     className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-lg bg-slate-50 gap-4">
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <span className="font-bold text-lg">{req.bloodType.replace('_', ' ')}</span>

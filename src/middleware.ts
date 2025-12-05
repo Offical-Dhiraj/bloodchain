@@ -2,7 +2,7 @@ import {getToken} from "next-auth/jwt"
 import {NextResponse} from "next/server"
 import type {NextRequest} from "next/server"
 
-// 1. Add "/api/auth" to this list to prevent blocking login requests
+// 1. Add public routes here
 const PUBLIC_PATHS = [
     "/_next",
     "/favicon.ico",
@@ -10,7 +10,12 @@ const PUBLIC_PATHS = [
     "/api/public",
     "/api/health",
     "/public",
-    "/api/auth", // <--- CRITICAL FIX: Allow NextAuth routes
+    "/api/auth",
+
+    // --- FIX STARTS HERE ---
+    "/requests",      // Allow UI: /requests, /requests/123, etc.
+    "/api/requests"   // Allow API: /api/requests/active, /api/requests/123
+    // --- FIX ENDS HERE ---
 ]
 
 const ROLE_REQUIRED: Record<string, string> = {
